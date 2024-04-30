@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>Web RTC Sample</title>
+    </head>
+    <body>
+
+        <div id="start-page">
+            <h2 class="text">Web RTC Sample</h2>
+            <input id="roomName" type="text" placeholder="Room Name" />
+            <button id="join">Join</button>
+        </div>
+        <div id="video-page">
+            <video id="user-video"></video>
+            <video id="peer-video"></video>
+        </div>
+
+    </body>
+    <script src="https://cdn.socket.io/3.1.3/socket.io.min.js" integrity="sha384-cPwlPLvBTa3sKAgddT6krw0cJat7egBga3DJepJyrLl4Q9/5WLra3rrnMcyTyOnh" crossorigin="anonymous"></script>
+    <script src="/webrtc-action.js"></script>
+</html>
