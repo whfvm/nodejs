@@ -33,34 +33,18 @@ function removeBySocketId(obj, socketId) {
 io.on('connection', (socket) => {
   console.log(`${socket.id} user connected`);
 
+  socket.on('band', (data) => {
+      socket.join(data.bandId);
+      const room = Array.from(io.sockets.adapter.rooms.get(data.bandId));
+      console.log(room);
+      socket.broadcast.to(data.bandId).emit('bandRecieved', `유저 ${data.userId} 입장`);
+      // socket.emit('bandRecieved', room.filter((item) => item != socket.id));
+    })
+
   // roomId : '곰문곰'
-  socket.on('room', (data) => {
-    socket.join(data.bandId);
-    const room = Array.from(io.sockets.adapter.rooms.get(data.bandId));
-    console.log(room);
-    socket.emit('roomRecieved', room.filter((item) => item != socket.id));
+  socket.on('signaling', (data) => {
+    io.to(data.bandId).emit('signalingRecieved', '시작');
   })
-  // ['유저1','유저2','유저3'...]
-
-  // offerReciever: '유저2', SDP: 'sdp문자열'
-  socket.on('offer',(data) => {
-    const offerRecieved = {
-      offerSender: socket.id,
-      SDP: data.SDP
-    }
-    io.to(data.offerReciever).emit('offerRecieved', offerRecieved);
-  })
-  // offerSender: '유저1', SDP: 'sdp문자열'
-
-  //  answerReciever: '유저1;, SDP: 'sdp문자열'
-  socket.on('answer',(data) =>{
-    const answerRecieved = {
-      answerSender: socket.id,
-      SDP: data.SDP
-    }
-    io.to(data.answerReciever).emit('answerRecieved', answerRecieved);
-  })
-  //offerSender: '유저1;, SDP: 'sdp문자열'
 
   socket.on('disconnect', () => {
     console.log(`${socket.id} disconnected`);
