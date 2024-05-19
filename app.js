@@ -62,6 +62,7 @@ io.on('connection', (socket) => {
     const date = new Date();
     dealyMap.set(socket.id, date.getTime() - requsetMap.get(socket.id));
     console.log(socket.id + ' ' + dealyMap.get(socket.id));
+    io.to(socket.id).emit('answerRecieved', dealyMap.get(socket.id));
   })
 
   socket.on('disconnect', () => {
