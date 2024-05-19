@@ -11,6 +11,10 @@ const io = socketIO(server, {
   }
 });
 
+let dealyMap = new Map()
+let requsetMap = new Map()
+let responseMap = new Map()
+
 // 객체 배열의 원소 중 객체의 특정 속성이 특정 값인지 확인
 function findObjectByPropertyValue(array, property, value) {
   return array.find(obj => obj[property] === value);
@@ -44,6 +48,20 @@ io.on('connection', (socket) => {
   // roomId : '곰문곰'
   socket.on('signaling', (data) => {
     io.to(data.bandId).emit('signalingRecieved', '시작');
+  })
+
+  // 클라이언트는 ping 으로 요청 보내면 됨
+  socket.on('ping', () => {
+    const date = new Date();
+    requsetMap.set(socket.id, date.getTime())
+    io.to(socket.id).emit('pingRecieved')
+  })
+
+  // 클라이언트가 answer로 요청 보내면 받아서 딜레이 계산
+  socket.on('answer', () => {
+    const date = new Date();
+    dealyMap.set(socket.id, date.getTime() - requsetMap.get(socket.id));
+    console.log(socket.id + ' ' + dealyMap.get(socket.id));
   })
 
   socket.on('disconnect', () => {
