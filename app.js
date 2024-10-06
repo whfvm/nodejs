@@ -1,78 +1,83 @@
-const express = require('express');
-const http = require('http');
-const socketIO = require('socket.io');
+const WebSocket = require('ws');
+const { v4: uuidv4 } = require('uuid');
 
-const app = express();
-const server = http.createServer(app);
-const io = socketIO(server, {
-  cors: {
-    origin: '*',
-    methods:["GET","POST"]
-  }
+const wss = new WebSocket.Server({port:5000});
+
+const sessions = new Map();
+const rooms = {};
+
+// 서버 시작 알림
+wss.on('listening', () => {
+  console.log('WebSocket server started on port 5000');
 });
 
-let dealyMap = new Map()
-let requsetMap = new Map()
-let responseMap = new Map()
+// 메시지 처리
+wss.on('connection', (ws, req) => {
+  const sessionId = uuidv4();
 
-// 객체 배열의 원소 중 객체의 특정 속성이 특정 값인지 확인
-function findObjectByPropertyValue(array, property, value) {
-  return array.find(obj => obj[property] === value);
-}
+  sessions.set(sessionId, ws);
 
-// 객체 배열의 원소 중 객체의 특정 속성만 추출해서 다른 배열로 만들기
-function extractProperties(array, property) {
-  return array.map(obj => obj[property]);
-}
+  ws.send(`Welcome! Your session ID is: ${sessionId}`);
 
-//roomAndMember에서 특정 socket id 가진 원소 삭제
-function removeBySocketId(obj, socketId) {
-  for (let prop in obj) {
-    if (Array.isArray(obj[prop])) {
-      obj[prop] = obj[prop].filter(item => !(item.socketId && item.socketId === socketId));
+  // 메시지 수신 이벤트 처리
+  ws.on('message', (message) => {
+    // 받을 json
+    /*{
+      "trackId": "3f9e01c8-dcd5-4b91-9dbf-ace73fb82032",
+      "time": "2024-10-05T12:34:56Z" or null
+    }*/
+    try{
+      const receivedData = JSON.parse(message);
+      const trackId = receivedData.trackId;
+      const time = receivedData.time;
+      // 방에 JOIN 하는 로직
+      if(time == null){
+        // 새로운 방(track) 생성
+        if(!rooms[trackId]) {
+          rooms[trackId] = [];
+        }
+
+        rooms[trackId].push(sessionId);
+
+        console.log(rooms[trackId]);
+
+        ws.send("you joined " + trackId);
+      } else /*전체에게 메시지 전송하는 로직*/ {
+        rooms[trackId].map((id) => {
+          const clientWs = sessions.get(id);
+          if (clientWs && clientWs.readyState === WebSocket.OPEN) {
+              clientWs.send(time);
+          }
+          return null;
+        });
+      }
+    } catch (error){
+      ws.send(JSON.stringify({
+        error: error.message // 에러 메시지 전송
+      }));
     }
-  }
-}
-
-io.on('connection', (socket) => {
-  console.log(`${socket.id} user connected`);
-
-  socket.on('band', (data) => {
-      socket.join(data.bandId);
-      const room = Array.from(io.sockets.adapter.rooms.get(data.bandId));
-      console.log(room);
-      socket.broadcast.to(data.bandId).emit('bandRecieved', `유저 ${data.userId} 입장`);
-      // socket.emit('bandRecieved', room.filter((item) => item != socket.id));
-    })
-
-  // roomId : '곰문곰'
-  socket.on('signaling', (data) => {
-    io.to(data.bandId).emit('signalingRecieved', '시작');
-  })
-
-  // 클라이언트는 ping 으로 요청 보내면 됨
-  socket.on('ping', () => {
-    const date = new Date();
-    requsetMap.set(socket.id, date.getTime())
-    io.to(socket.id).emit('pingRecieved')
-  })
-
-  // 클라이언트가 answer로 요청 보내면 받아서 딜레이 계산
-  socket.on('answer', () => {
-    const date = new Date();
-    dealyMap.set(socket.id, date.getTime() - requsetMap.get(socket.id));
-    console.log(socket.id + ' ' + dealyMap.get(socket.id));
-    io.to(socket.id).emit('answerRecieved', dealyMap.get(socket.id));
-  })
-
-  socket.on('disconnect', () => {
-    console.log(`${socket.id} disconnected`);
   });
 
-});
+  // 연결 종료 시 처리
+  ws.on('close', () => {
+    console.log(`Client with session ID ${sessionId} disconnected`);
+    sessions.delete(sessionId); // 세션 삭제
 
-const PORT = process.env.PORT || 5000;
-
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+    // 방에서 세션 ID 삭제
+    for (const trackId in rooms) {
+      if (rooms[trackId].includes(sessionId)) {
+        rooms[trackId] = rooms[trackId].filter(id => id !== sessionId); // 세션 ID 제거
+        console.log(`Session ${sessionId} removed from room ${trackId}`);
+        
+        // 방이 비어 있으면 방 삭제
+        if (rooms[trackId].length === 0) {
+          delete rooms[trackId];
+          console.log(`Room ${trackId} is now empty and has been deleted.`);
+        } else {
+          console.log(`Current users in room ${trackId}:`, rooms[trackId]);
+        }
+        break; // 이미 세션 ID를 찾아서 제거했으므로 루프 종료
+      }
+    }
+  });
 });
